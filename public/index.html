@@ -1,0 +1,163 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Food Express | Order Food</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Arial, sans-serif;
+      background: #fff8f0; color: #292524;
+    }
+    header {
+      background: #d9482b; color: white;
+      text-align: center; padding: 25px 15px;
+    }
+    header h1 { margin: 0 0 8px; }
+    main { max-width: 950px; margin: 25px auto; padding: 0 16px; }
+    .menu {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: white; border-radius: 12px; padding: 18px;
+      box-shadow: 0 2px 8px #00000012;
+    }
+    .emoji { font-size: 42px; }
+    .price { font-weight: bold; color: #d9482b; }
+    label { display: block; margin-top: 12px; }
+    input {
+      width: 75px; padding: 7px; margin-top: 5px;
+    }
+    button {
+      background: #d9482b; color: white; border: 0;
+      border-radius: 7px; padding: 12px 18px; cursor: pointer;
+    }
+    button:disabled { opacity: .6; cursor: wait; }
+    .checkout {
+      background: white; padding: 20px; border-radius: 12px;
+      margin-top: 24px;
+    }
+    #result { white-space: pre-line; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🍽️ Food Express</h1>
+    <p>Fresh food, simple ordering!</p>
+  </header>
+
+  <main>
+    <h2>Our Menu</h2>
+    <div id="menu" class="menu">Loading menu...</div>
+
+    <section class="checkout">
+      <h2>Your Order</h2>
+      <p>Select quantities above, then place your order.</p>
+      <button id="orderButton">Place Order</button>
+      <p id="result" role="status" aria-live="polite"></p>
+    </section>
+  </main>
+
+  <script>
+    const menuBox = document.getElementById("menu");
+    const result = document.getElementById("result");
+    const orderButton = document.getElementById("orderButton");
+
+    const emojis = {
+      Pizza: "🍕", Burger: "🍔",
+      Biryani: "🍛", Sandwich: "🥪"
+    };
+
+    async function loadMenu() {
+      try {
+        const response = await fetch("/api/menu");
+        if (!response.ok) throw new Error("Menu unavailable");
+        const menu = await response.json();
+
+        menuBox.replaceChildren();
+        menu.forEach(food => {
+          const card = document.createElement("div");
+          card.className = "card";
+
+          const emoji = document.createElement("div");
+          emoji.className = "emoji";
+          emoji.textContent = emojis[food.name] || "🍽️";
+
+          const name = document.createElement("h3");
+          name.textContent = food.name;
+
+          const price = document.createElement("p");
+          price.className = "price";
+          price.textContent = `₹${food.price}`;
+
+          const label = document.createElement("label");
+          label.textContent = "Quantity (0–10)";
+
+          const quantity = document.createElement("input");
+          quantity.type = "number";
+          quantity.min = "0";
+          quantity.max = "10";
+          quantity.step = "1";
+          quantity.value = "0";
+          quantity.id = `qty-${food.id}`;
+          quantity.setAttribute("aria-label", `${food.name} quantity`);
+
+          label.append(quantity);
+          card.append(emoji, name, price, label);
+          menuBox.append(card);
+        });
+      } catch {
+        menuBox.textContent = "Unable to load menu. Refresh the page.";
+      }
+    }
+
+    orderButton.addEventListener("click", async () => {
+      const items = [];
+
+      for (const input of document.querySelectorAll('input[id^="qty-"]')) {
+        const quantity = Number(input.value);
+        const id = Number(input.id.replace("qty-", ""));
+
+        if (!Number.isInteger(quantity) || quantity < 0 || quantity > 10) {
+          result.textContent = "Enter a whole quantity between 0 and 10.";
+          return;
+        }
+        if (quantity > 0) items.push({ id, quantity });
+      }
+
+      if (items.length === 0) {
+        result.textContent = "Please select at least one food item.";
+        return;
+      }
+
+      orderButton.disabled = true;
+      result.textContent = "Placing your order...";
+
+      try {
+        const response = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items })
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Order failed");
+
+        result.textContent =
+          `Order placed successfully!\n` +
+          `Order ID: ${data.orderId}\n` +
+          `Total: ₹${data.total}\n` +
+          `Thank you for ordering!`;
+      } catch (error) {
+        result.textContent = `Error: ${error.message}. Please try again.`;
+      } finally {
+        orderButton.disabled = false;
+      }
+    });
+
+    loadMenu();
+  </script>
+</body>
+</html>
