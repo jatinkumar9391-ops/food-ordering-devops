@@ -1,0 +1,24 @@
+cat > Jenkinsfile << 'EOF'
+pipeline {
+  agent any
+  stages {
+    stage('Build Docker Image') {
+      steps {
+        sh 'docker build -t restaurant-devops-project .'
+      }
+    }
+    stage('Deploy to 8081') {
+      steps {
+        sh '''
+          docker rm -f restaurant-site || true
+          docker run -d -p 8081:80 --name restaurant-site restaurant-devops-project
+        '''
+      }
+    }
+  }
+}
+EOF
+
+git add Jenkinsfile
+git commit -m "Add Jenkinsfile for CI/CD"
+git push
